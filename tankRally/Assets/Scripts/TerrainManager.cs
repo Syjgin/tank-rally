@@ -17,6 +17,10 @@ public class TerrainManager : MonoBehaviour
     private Vector2 _offset;
     private float _rotation;
 
+    public delegate void TankPositionLoadingAction();
+
+    public event TankPositionLoadingAction OnTankPositionLoaded;
+
     void Awake()
     {
         _spawnedTiles = new Dictionary<Vector3, GameObject>();
@@ -31,6 +35,8 @@ public class TerrainManager : MonoBehaviour
         _anchor.transform.Rotate(Vector3.up, _rotation);
         _currentTilePos = transform.position;
 	    AddTile(_currentTilePos);
+	    if (OnTankPositionLoaded != null)
+	        OnTankPositionLoaded();
 	}
 
     void OnDestroy()

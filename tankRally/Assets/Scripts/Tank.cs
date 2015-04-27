@@ -4,7 +4,7 @@ using System.Collections;
 public class Tank : MonoBehaviour
 {
     private const float MoveDelta = 0.2f;
-    private const float RotateDelta = 0.5f;
+    private const float RotateDelta = 1f;
 
 	void Update () {
 	    
