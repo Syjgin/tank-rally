@@ -1,0 +1,13 @@
+{
+   "MaxVisibleObjects": 50,
+   "BushSpawnPeriod": 5,
+   "MinimalBushDistance": 1,
+   "Possibilities": {
+       "Tree": 10,
+       "Bush": 30,
+       "Puddle": 10,
+	   "Stone": 50
+   },
+   "TankVelocity": 0.1,
+   "TankAngularVelocity": 1
+}

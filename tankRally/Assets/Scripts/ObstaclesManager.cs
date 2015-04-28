@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using UnityEngine;
-using System.Collections;
 using Random = UnityEngine.Random;
 
 public class ObstaclesManager : MonoBehaviour
@@ -15,12 +13,12 @@ public class ObstaclesManager : MonoBehaviour
     [SerializeField] private GameObject _tank;
     [SerializeField] private TerrainManager _terrain;
 
-    private Dictionary<MapObjectType, int> _possibilities; 
+    private Dictionary<MapObjectType, float> _possibilities; 
 
     private Vector3 _currentAxisPoint;
-    private const int MaxVisibleCount = 50;
-    private const float BushSpawnInterval = 5;
-    private const float MinAllowedBushInterval = 1;
+    private int _maxVisibleCount;
+    private float _bushSpawnInterval;
+    private float _minAllowedBushInterval;
     private const float VisibilityCoef = 1.5f;
 
     private List<GameObject> _spawnedPrefabs;
@@ -70,10 +68,15 @@ public class ObstaclesManager : MonoBehaviour
 
         _terrain.OnTankPositionLoaded += Init;
         _filledPrefabTiles = new List<Vector3>();
-        _possibilities = new Dictionary<MapObjectType, int>();
+        _possibilities = new Dictionary<MapObjectType, float>();
         Random.seed = Convert.ToInt32(DateTime.UtcNow.Ticks % 100);
         _spawnedPrefabs = new List<GameObject>();
         _spawnedBushes = new List<GameObject>();
+
+        _minAllowedBushInterval = DataManager.GetInstance().GetBushMinimalDistance();
+        _bushSpawnInterval = DataManager.GetInstance().GetBushSpawnPeriod();
+        _maxVisibleCount = DataManager.GetInstance().GetMaxVisibleObjects();
+        _possibilities = DataManager.GetInstance().GetPossibilities();
     }
 
     void OnDestroy()
@@ -88,11 +91,7 @@ public class ObstaclesManager : MonoBehaviour
         _currentAxisPoint = _tank.transform.position;
         transform.position = _tank.transform.position;
         transform.rotation = _tank.transform.rotation;
-        _possibilities.Add(MapObjectType.Tree, 10);
-        _possibilities.Add(MapObjectType.Bush, 30);
-        _possibilities.Add(MapObjectType.Puddle, 10);
-        _possibilities.Add(MapObjectType.Stone, 50);
-
+        
         _spawnedObjectsData = DataManager.GetInstance().LoadMapInfo();
         Vector3[] bounds = GenerateVisibilityBounds();
         foreach (var mapObjectData in _spawnedObjectsData)
@@ -156,7 +155,7 @@ public class ObstaclesManager : MonoBehaviour
             _currentAxisPoint.z += _displaySizeY;
         }
 
-	    if (Time.time - _lastBushSpawnTime > BushSpawnInterval)
+	    if (Time.time - _lastBushSpawnTime > _bushSpawnInterval)
 	    {
 	        _lastBushSpawnTime = Time.time;
             SpawnAdditionalBush(newAxisPoint);
@@ -180,10 +179,10 @@ public class ObstaclesManager : MonoBehaviour
             if (!_filledPrefabTiles.Contains(tile))
             {
                 int currentVisibleCount = GetNearestMapObjects(tile);
-                while (currentVisibleCount < MaxVisibleCount)
+                while (currentVisibleCount < _maxVisibleCount)
                 {
                     int attempt = Random.Range(0, 100);
-                    int targetPossibility = 0;
+                    float targetPossibility = 0;
                     foreach (var possibility in _possibilities)
                     {
                         targetPossibility += possibility.Value;
@@ -279,7 +278,7 @@ public class ObstaclesManager : MonoBehaviour
             }
             currentIndex++;
         }
-        if (maxDist > MinAllowedBushInterval)
+        if (maxDist > _minAllowedBushInterval)
         {
             GameObject instantiated = GetMapObjectByEnum(MapObjectType.Bush);
             instantiated.transform.parent = transform;
