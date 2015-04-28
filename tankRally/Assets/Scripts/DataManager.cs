@@ -165,35 +165,13 @@ public class DataManager
 
     
 
-    public void SaveMapInfo(List<ObstaclesManager.MapObjectData> mapData)
+    public void SaveMapInfo(string mapData)
     {
-        PlayerPrefs.SetInt(MapDataObject + "Size", mapData.Count);
-        int currentIndex = 0;
-        foreach (var mapObjectData in mapData)
-        {
-            PlayerPrefs.SetString(MapDataObject + currentIndex + "Type", mapObjectData.ObjectType.ToString());
-            PlayerPrefs.SetFloat(MapDataObject + currentIndex + "Rotation", mapObjectData.Rotation);
-            PlayerPrefs.SetFloat(MapDataObject + currentIndex + "XCoord", mapObjectData.XCoord);
-            PlayerPrefs.SetFloat(MapDataObject + currentIndex + "YCoord", mapObjectData.YCoord);
-            currentIndex++;
-        }
+        PlayerPrefs.SetString(MapDataObject, mapData);
     }
 
-    public List<ObstaclesManager.MapObjectData> LoadMapInfo()
+    public string LoadMapInfo()
     {
-        List<ObstaclesManager.MapObjectData> result = new List<ObstaclesManager.MapObjectData>();
-        int count = PlayerPrefs.GetInt(MapDataObject + "Size", 0);
-        for (int i = 0; i < count; i++)
-        {
-            ObstaclesManager.MapObjectData objectData = new ObstaclesManager.MapObjectData();
-            string objType = PlayerPrefs.GetString(MapDataObject + i + "Type");
-            objectData.ObjectType =
-                (ObstaclesManager.MapObjectType) Enum.Parse(typeof (ObstaclesManager.MapObjectType), objType);
-            objectData.Rotation = PlayerPrefs.GetFloat(MapDataObject + i + "Rotation");
-            objectData.XCoord = PlayerPrefs.GetFloat(MapDataObject + i + "XCoord");
-            objectData.YCoord = PlayerPrefs.GetFloat(MapDataObject + i + "YCoord");
-            result.Add(objectData);
-        }
-        return result;
+        return PlayerPrefs.GetString(MapDataObject, "");
     }
 }

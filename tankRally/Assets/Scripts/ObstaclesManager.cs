@@ -13,6 +13,13 @@ public class ObstaclesManager : MonoBehaviour
     [SerializeField] private GameObject _tank;
     [SerializeField] private TerrainManager _terrain;
 
+    private const string ObjectCount = "ObjectCount";
+    private const string ObjectItem = "ObjectItem";
+    private const string ObjectType = "ObjectType";
+    private const string ObjectRotation = "ObjectRotation";
+    private const string ObjectCoordX = "ObjectCoordX";
+    private const string ObjectCoordY = "ObjectCoordY";
+
     private Dictionary<MapObjectType, float> _possibilities; 
 
     private Vector3 _currentAxisPoint;
@@ -33,6 +40,8 @@ public class ObstaclesManager : MonoBehaviour
 
     private float _lastBushSpawnTime;
 
+    private int _mapObjectCount;
+
     public enum MapObjectType
     {
         Tree,
@@ -41,18 +50,11 @@ public class ObstaclesManager : MonoBehaviour
         Stone
     };
 
-    public struct MapObjectData
-    {
-        public MapObjectType ObjectType;
-        public float Rotation;
-        public float XCoord;
-        public float YCoord;
-    }
-
-    private List<MapObjectData> _spawnedObjectsData; 
+    private JSONObject _mapObjectData;
 
     void Awake()
     {
+        _mapObjectData = new JSONObject(DataManager.GetInstance().LoadMapInfo());
         Ray startRayX = _mainCamera.ScreenPointToRay(new Vector3(0, 0));
         Vector3 startProjectionX = startRayX.GetPoint(1);
         Ray endRayX = _mainCamera.ScreenPointToRay(new Vector3(Screen.width, 0));
@@ -82,29 +84,47 @@ public class ObstaclesManager : MonoBehaviour
     void OnDestroy()
     {
         _terrain.OnTankPositionLoaded -= Init;
-        DataManager.GetInstance().SaveMapInfo(_spawnedObjectsData);
+        _mapObjectData.Bake();
+        DataManager.GetInstance().SaveMapInfo(_mapObjectData.str);
     }
 
     private void Init()
     {
-        _spawnedObjectsData = DataManager.GetInstance().LoadMapInfo();
         _currentAxisPoint = _tank.transform.position;
         transform.position = _tank.transform.position;
         transform.rotation = _tank.transform.rotation;
-        
-        _spawnedObjectsData = DataManager.GetInstance().LoadMapInfo();
+
+        _mapObjectData.GetField(ref _mapObjectCount, ObjectCount, 0);
         Vector3[] bounds = GenerateVisibilityBounds();
-        foreach (var mapObjectData in _spawnedObjectsData)
+        for (int i = 0; i < _mapObjectCount; i++)
         {
-            GameObject instantiated = GetMapObjectByEnum(mapObjectData.ObjectType);
-            instantiated.transform.parent = transform;
-            instantiated.transform.position = new Vector3(mapObjectData.XCoord, 0, mapObjectData.YCoord);
-            instantiated.transform.Rotate(Vector3.up, mapObjectData.Rotation);
-            _spawnedPrefabs.Add(instantiated);
-            if(mapObjectData.ObjectType == MapObjectType.Bush)
-                _spawnedBushes.Add(instantiated);
-            CheckVisibility(instantiated, bounds);
+            JSONObject mapObject = _mapObjectData.GetField(ObjectItem + i);
+            if (mapObject != null)
+            {
+                string objType = default(string);
+                if(!mapObject.GetField(ref objType, ObjectType))
+                    Debug.LogError("object type parse failed");
+                MapObjectType mapObjectType = (MapObjectType) Enum.Parse(typeof (MapObjectType), objType);
+                float rotation = 0;
+                if (!mapObject.GetField(ref rotation, ObjectRotation))
+                    Debug.LogError("object rotation parse failed");
+                float coordX = 0;
+                if (!mapObject.GetField(ref coordX, ObjectCoordX))
+                    Debug.LogError("object x coordinate parse failed");
+                float coordY = 0;
+                if (!mapObject.GetField(ref coordY, ObjectCoordY))
+                    Debug.LogError("object x coordinate parse failed");
+                GameObject instantiated = GetMapObjectByEnum(mapObjectType);
+                instantiated.transform.parent = transform;
+                instantiated.transform.position = new Vector3(coordX, 0, coordY);
+                instantiated.transform.Rotate(Vector3.up, rotation);
+                _spawnedPrefabs.Add(instantiated);
+                if (mapObjectType == MapObjectType.Bush)
+                    _spawnedBushes.Add(instantiated);
+                CheckVisibility(instantiated, bounds);
+            }
         }
+        
         PlaceObstacles(_currentAxisPoint);
         _lastBushSpawnTime = Time.time;
         _isInitialized = true;
@@ -232,12 +252,14 @@ public class ObstaclesManager : MonoBehaviour
 
     private void SaveMapObject(MapObjectType objectType, GameObject instantiated)
     {
-        MapObjectData data = new MapObjectData();
-        data.ObjectType = objectType;
-        data.Rotation = instantiated.transform.rotation.eulerAngles.y;
-        data.XCoord = instantiated.transform.position.x;
-        data.YCoord = instantiated.transform.position.z;
-        _spawnedObjectsData.Add(data);
+        _mapObjectCount++;
+        _mapObjectData.SetField(ObjectCount, _mapObjectCount);
+        JSONObject objToAdd = new JSONObject();
+        objToAdd.AddField(ObjectType, objectType.ToString());
+        objToAdd.AddField(ObjectRotation, instantiated.transform.rotation.eulerAngles.y);
+        objToAdd.AddField(ObjectCoordX, instantiated.transform.position.x);
+        objToAdd.AddField(ObjectCoordY, instantiated.transform.position.z);
+        _mapObjectData.AddField(ObjectItem + _mapObjectCount, objToAdd);
     }
 
     private void SpawnAdditionalBush(Vector3 axis)
