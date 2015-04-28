@@ -21,6 +21,7 @@ public class ObstaclesManager : MonoBehaviour
     private const int MaxVisibleCount = 50;
     private const float BushSpawnInterval = 5;
     private const float MinAllowedBushInterval = 1;
+    private const float VisibilityCoef = 1.5f;
 
     private List<GameObject> _spawnedPrefabs;
     private List<GameObject> _spawnedBushes; 
@@ -42,8 +43,31 @@ public class ObstaclesManager : MonoBehaviour
         Stone
     };
 
+    public struct MapObjectData
+    {
+        public MapObjectType ObjectType;
+        public float Rotation;
+        public float XCoord;
+        public float YCoord;
+    }
+
+    private List<MapObjectData> _spawnedObjectsData; 
+
     void Awake()
     {
+        Ray startRayX = _mainCamera.ScreenPointToRay(new Vector3(0, 0));
+        Vector3 startProjectionX = startRayX.GetPoint(1);
+        Ray endRayX = _mainCamera.ScreenPointToRay(new Vector3(Screen.width, 0));
+        Vector3 endProjectionX = endRayX.GetPoint(1);
+
+        Ray startRayY = _mainCamera.ScreenPointToRay(new Vector3(0, 0));
+        Vector3 startProjectionY = startRayY.GetPoint(1);
+        Ray endRayY = _mainCamera.ScreenPointToRay(new Vector3(0, Screen.height));
+        Vector3 endProjectionY = endRayY.GetPoint(1);
+
+        _displaySizeX = Mathf.Abs(startProjectionX.x - endProjectionX.x);
+        _displaySizeY = Mathf.Abs(startProjectionY.z - endProjectionY.z);
+
         _terrain.OnTankPositionLoaded += Init;
         _filledPrefabTiles = new List<Vector3>();
         _possibilities = new Dictionary<MapObjectType, int>();
@@ -55,10 +79,12 @@ public class ObstaclesManager : MonoBehaviour
     void OnDestroy()
     {
         _terrain.OnTankPositionLoaded -= Init;
+        DataManager.GetInstance().SaveMapInfo(_spawnedObjectsData);
     }
 
     private void Init()
     {
+        _spawnedObjectsData = DataManager.GetInstance().LoadMapInfo();
         _currentAxisPoint = _tank.transform.position;
         transform.position = _tank.transform.position;
         transform.rotation = _tank.transform.rotation;
@@ -67,10 +93,19 @@ public class ObstaclesManager : MonoBehaviour
         _possibilities.Add(MapObjectType.Puddle, 10);
         _possibilities.Add(MapObjectType.Stone, 50);
 
-        Vector3 start = _mainCamera.ScreenToWorldPoint(new Vector3(0, 0));
-        Vector3 end = _mainCamera.ScreenToWorldPoint(new Vector3(Screen.width, Screen.height));
-        _displaySizeX = Mathf.Abs(start.x - end.x);
-        _displaySizeY = _displaySizeX*((float)Screen.height/Screen.width);
+        _spawnedObjectsData = DataManager.GetInstance().LoadMapInfo();
+        Vector3[] bounds = GenerateVisibilityBounds();
+        foreach (var mapObjectData in _spawnedObjectsData)
+        {
+            GameObject instantiated = GetMapObjectByEnum(mapObjectData.ObjectType);
+            instantiated.transform.parent = transform;
+            instantiated.transform.position = new Vector3(mapObjectData.XCoord, 0, mapObjectData.YCoord);
+            instantiated.transform.Rotate(Vector3.up, mapObjectData.Rotation);
+            _spawnedPrefabs.Add(instantiated);
+            if(mapObjectData.ObjectType == MapObjectType.Bush)
+                _spawnedBushes.Add(instantiated);
+            CheckVisibility(instantiated, bounds);
+        }
         PlaceObstacles(_currentAxisPoint);
         _lastBushSpawnTime = Time.time;
         _isInitialized = true;
@@ -185,9 +220,7 @@ public class ObstaclesManager : MonoBehaviour
 
     private void SpawnNewMapObject(Vector3 axis, MapObjectType objectType)
     {
-        float xPosition = Random.Range(axis.x - _displaySizeX / 2, axis.x + _displaySizeX / 2);
-        float yPosition = Random.Range(axis.z - _displaySizeY / 2, axis.z + _displaySizeY / 2);
-        Vector3 position = new Vector3(xPosition, 0, yPosition);
+        Vector3 position = GenerateRandomPosition(axis);
         GameObject instantiated = GetMapObjectByEnum(objectType);
         instantiated.transform.parent = transform;
         instantiated.transform.position = position;
@@ -195,6 +228,17 @@ public class ObstaclesManager : MonoBehaviour
         _spawnedPrefabs.Add(instantiated);
         if(objectType == MapObjectType.Bush)
             _spawnedBushes.Add(instantiated);
+        SaveMapObject(objectType, instantiated);
+    }
+
+    private void SaveMapObject(MapObjectType objectType, GameObject instantiated)
+    {
+        MapObjectData data = new MapObjectData();
+        data.ObjectType = objectType;
+        data.Rotation = instantiated.transform.rotation.eulerAngles.y;
+        data.XCoord = instantiated.transform.position.x;
+        data.YCoord = instantiated.transform.position.z;
+        _spawnedObjectsData.Add(data);
     }
 
     private void SpawnAdditionalBush(Vector3 axis)
@@ -214,9 +258,7 @@ public class ObstaclesManager : MonoBehaviour
         const int candidateCount = 10;
         for (int i = 0; i < candidateCount; i++)
         {
-            float xPosition = Random.Range(axis.x - _displaySizeX / 2, axis.x + _displaySizeX / 2);
-            float yPosition = Random.Range(axis.z - _displaySizeY / 2, axis.z + _displaySizeY / 2);
-            candidateCoordinates.Add(new Vector3(xPosition, 0, yPosition));
+            candidateCoordinates.Add(GenerateRandomPosition(axis));
         }
         float maxDist = float.MinValue;
         int maxDistIndex = 0;
@@ -243,7 +285,8 @@ public class ObstaclesManager : MonoBehaviour
             instantiated.transform.parent = transform;
             instantiated.transform.position = candidateCoordinates[maxDistIndex];
             _spawnedBushes.Add(instantiated);
-            _spawnedPrefabs.Add(instantiated);   
+            _spawnedPrefabs.Add(instantiated);  
+            SaveMapObject(MapObjectType.Bush, instantiated);
         }
     }
 
@@ -266,22 +309,39 @@ public class ObstaclesManager : MonoBehaviour
 
     private void SwapObjectsByDistance()
     {
-        const float displayCoef = 1.5f;
-        Vector3 min = new Vector3(_currentAxisPoint.x - _displaySizeX * displayCoef, 0, _currentAxisPoint.z - _displaySizeY * displayCoef);
-        Vector3 max = new Vector3(_currentAxisPoint.x + _displaySizeX * displayCoef, 0, _currentAxisPoint.z + _displaySizeY * displayCoef);
+        Vector3[] bounds = GenerateVisibilityBounds();
         foreach (var spawnedPrefab in _spawnedPrefabs)
         {
-            if (spawnedPrefab.transform.position.x > min.x &&
-                spawnedPrefab.transform.position.x < max.x &&
-                spawnedPrefab.transform.position.z > min.z &&
-                spawnedPrefab.transform.position.z < max.z)
-            {
-                spawnedPrefab.gameObject.SetActive(true);
-            }
-            else
-            {
-                spawnedPrefab.gameObject.SetActive(false);
-            }
+            CheckVisibility(spawnedPrefab, bounds);
         }
+    }
+
+    private Vector3[] GenerateVisibilityBounds()
+    {
+        Vector3 min = new Vector3(_currentAxisPoint.x - _displaySizeX * VisibilityCoef, 0, _currentAxisPoint.z - _displaySizeY * VisibilityCoef);
+        Vector3 max = new Vector3(_currentAxisPoint.x + _displaySizeX * VisibilityCoef, 0, _currentAxisPoint.z + _displaySizeY * VisibilityCoef);
+        return new[] {min, max};
+    }
+
+    private static void CheckVisibility(GameObject spawnedPrefab, Vector3[] bounds)
+    {
+        if (spawnedPrefab.transform.position.x > bounds[0].x &&
+            spawnedPrefab.transform.position.x < bounds[1].x &&
+            spawnedPrefab.transform.position.z > bounds[0].z &&
+            spawnedPrefab.transform.position.z < bounds[1].z)
+        {
+            spawnedPrefab.gameObject.SetActive(true);
+        }
+        else
+        {
+            spawnedPrefab.gameObject.SetActive(false);
+        }
+    }
+
+    private Vector3 GenerateRandomPosition(Vector3 initialPosition)
+    {
+        float xPosition = Random.Range(initialPosition.x - _displaySizeX / 2, initialPosition.x + _displaySizeX / 2);
+        float yPosition = Random.Range(initialPosition.z - _displaySizeY / 2, initialPosition.z + _displaySizeY / 2);
+        return new Vector3(xPosition, 0, yPosition);
     }
 }
