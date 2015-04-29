@@ -19,6 +19,7 @@ public class ObstaclesManager : MonoBehaviour
     private const string ObjectRotation = "ObjectRotation";
     private const string ObjectCoordX = "ObjectCoordX";
     private const string ObjectCoordY = "ObjectCoordY";
+    private const float VisibilityCoef = 1.5f;
 
     private Dictionary<MapObjectType, float> _possibilities; 
 
@@ -26,7 +27,7 @@ public class ObstaclesManager : MonoBehaviour
     private int _maxVisibleCount;
     private float _bushSpawnInterval;
     private float _minAllowedBushInterval;
-    private const float VisibilityCoef = 1.5f;
+    
 
     private List<GameObject> _spawnedPrefabs;
     private List<GameObject> _spawnedBushes; 
@@ -54,6 +55,7 @@ public class ObstaclesManager : MonoBehaviour
 
     void Awake()
     {
+        //load unparsed config and determine display projection size
         _mapObjectData = new JSONObject(DataManager.GetInstance().LoadMapInfo());
         Ray startRayX = _mainCamera.ScreenPointToRay(new Vector3(0, 0));
         Vector3 startProjectionX = startRayX.GetPoint(1);
@@ -83,6 +85,7 @@ public class ObstaclesManager : MonoBehaviour
 
     void OnDestroy()
     {
+        //save map obstacles data
         _terrain.OnTankPositionLoaded -= Init;
         _mapObjectData.Bake();
         DataManager.GetInstance().SaveMapInfo(_mapObjectData.str);
@@ -90,6 +93,7 @@ public class ObstaclesManager : MonoBehaviour
 
     private void Init()
     {
+        //when tank position loading finished, start initialization
         _currentAxisPoint = _tank.transform.position;
         transform.position = _tank.transform.position;
         transform.rotation = _tank.transform.rotation;
@@ -132,6 +136,7 @@ public class ObstaclesManager : MonoBehaviour
 
 	void Update ()
 	{
+        //chack tank delta, predict next tile position and fill it
         if(!_isInitialized)
             return;
         Vector3 newAxisPoint = _tank.transform.position;
@@ -174,7 +179,7 @@ public class ObstaclesManager : MonoBehaviour
             _currentAxisPoint.x -= _displaySizeX;
             _currentAxisPoint.z += _displaySizeY;
         }
-
+        //when bush spawn period expired, spawn new one
 	    if (Time.time - _lastBushSpawnTime > _bushSpawnInterval)
 	    {
 	        _lastBushSpawnTime = Time.time;
@@ -184,6 +189,7 @@ public class ObstaclesManager : MonoBehaviour
 
     private void PlaceObstacles(Vector3 axis)
     {
+        //fill selected tile and its neighbors
         List<Vector3> tilesToFill = new List<Vector3>();
         tilesToFill.Add(axis);
         tilesToFill.Add(new Vector3(axis.x + _displaySizeX, 0, axis.z));
@@ -220,6 +226,7 @@ public class ObstaclesManager : MonoBehaviour
 
     private int GetNearestMapObjects(Vector3 axis)
     {
+        //returns current tile visible objects count and make it visible
         int result = 0;
         Vector3 min = new Vector3(axis.x - _displaySizeX / 2, 0, axis.z - _displaySizeY / 2);
         Vector3 max = new Vector3(axis.x + _displaySizeX / 2, 0, axis.z + _displaySizeY / 2);
@@ -252,6 +259,7 @@ public class ObstaclesManager : MonoBehaviour
 
     private void SaveMapObject(MapObjectType objectType, GameObject instantiated)
     {
+        //save map object to json
         _mapObjectCount++;
         _mapObjectData.SetField(ObjectCount, _mapObjectCount);
         JSONObject objToAdd = new JSONObject();
@@ -264,6 +272,7 @@ public class ObstaclesManager : MonoBehaviour
 
     private void SpawnAdditionalBush(Vector3 axis)
     {
+        //get all bushes on the screen, generate 10 random candidate positions, and select one with largest minimal distance from other bushes
         List<Vector3> bushCoordinatesInNeighborhood = new List<Vector3>();
         foreach (var spawnedBush in _spawnedBushes)
         {
@@ -313,6 +322,7 @@ public class ObstaclesManager : MonoBehaviour
 
     private GameObject GetMapObjectByEnum(MapObjectType targetType)
     {
+        //instantiate appropriate prefab
         switch (targetType)
         {
             case MapObjectType.Tree:
@@ -330,6 +340,7 @@ public class ObstaclesManager : MonoBehaviour
 
     private void SwapObjectsByDistance()
     {
+        //if object is too far away, make it invisible, and make visible otherwise
         Vector3[] bounds = GenerateVisibilityBounds();
         foreach (var spawnedPrefab in _spawnedPrefabs)
         {

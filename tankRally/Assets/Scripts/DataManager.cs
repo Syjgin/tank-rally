@@ -40,6 +40,7 @@ public class DataManager
 
     private DataManager()
     {
+        //config reading
         _possibilities = new Dictionary<ObstaclesManager.MapObjectType, float>();
         bool possibilitiesParseFailed = false;
         TextAsset config = Resources.Load(ConfigName) as TextAsset;
@@ -47,10 +48,14 @@ public class DataManager
         {
             string unparsedConfig = config.text;   
             JSONObject parsedConfig = new JSONObject(unparsedConfig);
-            parsedConfig.GetField(ref _maxVisibleObjects, "MaxVisibleObjects", MaxVisibleObjectsFallback);
-            parsedConfig.GetField(ref _bushSpawnPeriod, "BushSpawnPeriod", BushSpawnPeriodFallback);
-            parsedConfig.GetField(ref _minimalBushDistance, "MinimalBushDistance", MinimalBushDistanceFallback);
-            parsedConfig.GetField(ref _tankVelocity, "TankVelocity", TankVelocityFallback);
+            if(!parsedConfig.GetField(ref _maxVisibleObjects, "MaxVisibleObjects", MaxVisibleObjectsFallback))
+                Debug.LogError("MaxVisibleObjects parse failed"); 
+            if(!parsedConfig.GetField(ref _bushSpawnPeriod, "BushSpawnPeriod", BushSpawnPeriodFallback))
+                Debug.LogError("BushSpawnPeriod parse failed"); 
+            if(!parsedConfig.GetField(ref _minimalBushDistance, "MinimalBushDistance", MinimalBushDistanceFallback))
+                Debug.LogError("MinimalBushDistance parse failed"); 
+            if(!parsedConfig.GetField(ref _tankVelocity, "TankVelocity", TankVelocityFallback))
+                Debug.LogError("TankVelocity parse failed"); 
             if (_tankVelocity < MinTankVelocity)
                 _tankVelocity = MinTankVelocity;
             if (_tankVelocity > MaxTankVelocity)
@@ -63,10 +68,14 @@ public class DataManager
             float stonePossibility = 0;
             if (possibilitiesObject != null)
             {
-                possibilitiesObject.GetField(ref treePossibility, "Tree", TreePossibilityFallback);
-                possibilitiesObject.GetField(ref puddlePossibility, "Puddle", PuddlePossibilityFallback);
-                possibilitiesObject.GetField(ref bushPossibility, "Bush", BushPossibilityFallback);
-                possibilitiesObject.GetField(ref stonePossibility, "Stone", StonePossibilityFallback);
+                if(!possibilitiesObject.GetField(ref treePossibility, "Tree", TreePossibilityFallback))
+                    Debug.LogError("tree possibility parse failed"); 
+                if(!possibilitiesObject.GetField(ref puddlePossibility, "Puddle", PuddlePossibilityFallback))
+                    Debug.LogError("puddle possibility parse failed"); 
+                if(!possibilitiesObject.GetField(ref bushPossibility, "Bush", BushPossibilityFallback))
+                    Debug.LogError("bush possibility parse failed"); 
+                if(!possibilitiesObject.GetField(ref stonePossibility, "Stone", StonePossibilityFallback))
+                    Debug.LogError("stone possibility parse failed"); 
 
                 _possibilities.Add(ObstaclesManager.MapObjectType.Tree, treePossibility);
                 _possibilities.Add(ObstaclesManager.MapObjectType.Bush, bushPossibility);
@@ -96,6 +105,8 @@ public class DataManager
         }
     }
 
+    //tank related data
+
     public float GetTankVelocity()
     {
         return _tankVelocity;
@@ -105,6 +116,32 @@ public class DataManager
     {
         return _tankAngularVelocity;
     }
+
+    public float GetTankRotation()
+    {
+        return PlayerPrefs.GetFloat(TankRotationKey, 0);
+    }
+
+    public void SaveTankRotation(float rotation)
+    {
+        PlayerPrefs.SetFloat(TankRotationKey, rotation);
+    }
+
+    public Vector2 GetTankPosition()
+    {
+        float offsetX = PlayerPrefs.GetFloat(TankPositionKey + "x", 0);
+        float offsetY = PlayerPrefs.GetFloat(TankPositionKey + "y", 0);
+        return new Vector2(offsetX, offsetY);
+    }
+
+    public void SaveTankPosition(Vector2 position)
+    {
+        PlayerPrefs.SetFloat(TankPositionKey + "x", position.x);
+        PlayerPrefs.SetFloat(TankPositionKey + "y", position.y);
+    }
+
+
+    //obstacles related data
 
     public int GetMaxVisibleObjects()
     {
@@ -126,29 +163,17 @@ public class DataManager
         return _possibilities;
     }
 
-    public float GetTankRotation()
+    public void SaveMapInfo(string mapData)
     {
-        return PlayerPrefs.GetFloat(TankRotationKey, 0);
+        PlayerPrefs.SetString(MapDataObject, mapData);
     }
 
-    public void SaveTankRotation(float rotation)
+    public string LoadMapInfo()
     {
-        PlayerPrefs.SetFloat(TankRotationKey, rotation);
+        return PlayerPrefs.GetString(MapDataObject, "");
     }
 
-
-    public Vector2 GetTankPosition()
-    {
-        float offsetX = PlayerPrefs.GetFloat(TankPositionKey + "x", 0);
-        float offsetY = PlayerPrefs.GetFloat(TankPositionKey + "y", 0);
-        return new Vector2(offsetX, offsetY);
-    }
-
-    public void SaveTankPosition(Vector2 position)
-    {
-        PlayerPrefs.SetFloat(TankPositionKey + "x", position.x);
-        PlayerPrefs.SetFloat(TankPositionKey + "y", position.y);
-    }
+    //terrain related data
 
     public Vector2 GetTerrainOffset()
     {
@@ -163,15 +188,4 @@ public class DataManager
         PlayerPrefs.SetFloat(TerrainOffsetKey + "y", offset.y);
     }
 
-    
-
-    public void SaveMapInfo(string mapData)
-    {
-        PlayerPrefs.SetString(MapDataObject, mapData);
-    }
-
-    public string LoadMapInfo()
-    {
-        return PlayerPrefs.GetString(MapDataObject, "");
-    }
 }

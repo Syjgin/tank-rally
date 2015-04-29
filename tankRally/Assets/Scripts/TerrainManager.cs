@@ -29,6 +29,7 @@ public class TerrainManager : MonoBehaviour
 
 	void Start ()
 	{
+        //load tank position, terrain offset and place it on same places
 	    _tankPosition = DataManager.GetInstance().GetTankPosition();
         _anchor.transform.position = new Vector3(_tankPosition.x, 0, _tankPosition.y);
 	    _offset = DataManager.GetInstance().GetTerrainOffset();
@@ -50,6 +51,7 @@ public class TerrainManager : MonoBehaviour
 
     void OnDestroy()
     {
+        //saving tank and terrain info
         DataManager.GetInstance().SaveTerrainOffset(_rotation, _offset);
         DataManager.GetInstance().SaveTankRotation(_rotation);
         DataManager.GetInstance().SaveTankPosition(_tankPosition);
@@ -57,6 +59,7 @@ public class TerrainManager : MonoBehaviour
 
 	void Update () 
     {
+        //if tank is far away from current tile, predict next tile and draw its neighbors
         Vector3 delta = (_anchor.transform.position - _tankOffset) - _currentTilePos;
         _tankPosition = new Vector2(_anchor.transform.position.x, _anchor.transform.position.z);
         _offset = new Vector2(delta.x, delta.z);
@@ -87,6 +90,7 @@ public class TerrainManager : MonoBehaviour
 
     private void CalculateInvisibleTiles()
     {
+        //if tile too far away from camera, set it inactive, or activate itherwise
         foreach (var spawnedTile in _spawnedTiles)
         {
             Vector3 dist = spawnedTile.Key - _currentTilePos;
@@ -99,6 +103,7 @@ public class TerrainManager : MonoBehaviour
 
     private void AddTile(Vector3 position)
     {
+        //spawn new tile
         GameObject spawnedTile = Instantiate(_terrainTile);
         spawnedTile.transform.parent = transform;
         spawnedTile.transform.localPosition = position;
@@ -108,6 +113,7 @@ public class TerrainManager : MonoBehaviour
 
     private Vector3[] CalculateNeighbors()
     {
+        //get tile neighbors
         Vector3[] neighbors = new Vector3[8];
         //north
         neighbors[0] = new Vector3(_currentTilePos.x, 0, _currentTilePos.z + MaxDistance);
@@ -130,6 +136,7 @@ public class TerrainManager : MonoBehaviour
 
     private Vector3 CalcultateNextAxisPoint(Vector3 delta)
     {
+        //returns predicted next tile position
         Vector3[] neighbors = CalculateNeighbors();
         if (delta.z > MaxDistance / 2 && Mathf.Abs(delta.x) < MaxDistance / 2)
         {
